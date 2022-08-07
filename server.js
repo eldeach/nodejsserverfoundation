@@ -98,16 +98,25 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
         }
         if (rowResult.length==1)
         {
-          if (bcrypt.compareSync(reqPW, rowResult[0].user_pw))
-          {
-            console.log("This account and PW was verified")
-            return done(null, rowResult)
-          }
-          else
-          {
-            console.log("This account is valid but this PW is wrong.")
-            return done(null, false, { message: 'wrong PW' })
-          }
+          selectFunc("SELECT * FROM tb_user_auth WHERE user_account='"+reqID+"'")
+          .then((authResult)=>{
+            if(authResult.length<1){
+              console.log("This account is unvalid")
+              return done(null, false, { message: 'no auth' })
+            }
+            else{
+              if (bcrypt.compareSync(reqPW, rowResult[0].user_pw))
+              {
+                console.log("This account and PW was verified")
+                return done(null, rowResult)
+              }
+              else
+              {
+                console.log("This account is valid but this PW is wrong.")
+                return done(null, false, { message: 'wrong PW' })
+              }
+            }
+          })
         }
       })
   }));
@@ -131,7 +140,11 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
     })
   
   });
-
+  //================================================================================ [공통 기능] 계정 생성
+  app.post('/createuseraccount', loginCheck, function(req,res){
+    console.log(req.body)
+    res.send("A")
+  })
 
 
   //================================================================================ [공통 기능] 모든 route를 react SPA로 연결 (이 코드는 맨 아래 있어야함)
