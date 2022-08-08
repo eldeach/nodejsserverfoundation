@@ -146,6 +146,18 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
     res.send("A")
   })
 
+  //================================================================================ [공통 기능] 계정 중복생성 확인
+  app.post('/duplicatedaccountCheck', loginCheck, function(req,res){
+    selectFunc("SELECT * FROM tb_user WHERE user_account='"+req.body.id+"'")
+    .then((rowResult)=>{
+      console.log(rowResult.length)
+      let rowCount = rowResult.length
+      console.log(rowCount)
+      res.send(`${rowCount}`)
+    })
+    
+  })
+
 
   //================================================================================ [공통 기능] 모든 route를 react SPA로 연결 (이 코드는 맨 아래 있어야함)
     app.get('/', function (요청, 응답) {
