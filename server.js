@@ -148,7 +148,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
 
   //================================================================================ [공통 기능] 계정 중복생성 확인
   app.post('/duplicatedaccountCheck', loginCheck, function(req,res){
-    selectFunc("SELECT * FROM tb_user WHERE user_account='"+req.body.id+"'")
+    selectFunc("SELECT * FROM tb_user WHERE user_account='"+req.body.useraccount+"'")
     .then((rowResult)=>{
       console.log(rowResult.length)
       let rowCount = rowResult.length
