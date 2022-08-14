@@ -159,9 +159,9 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
   })
 
   //================================================================================ [공통 기능] 모든 route를 react SPA로 연결 (이 코드는 맨 아래 있어야함)
-    app.get('/getaccountview', loginCheck, function (req, res) {
+    app.get('/getaccountmng', loginCheck, function (req, res) {
       console.log(req.query)
-      selectFunc("SELECT user_account, user_name, user_position, user_team, user_company, user_email, user_phone, remark, BIN_TO_UUID(uuid_binary) AS uuid_binary, insert_by, insert_datetime, update_by, update_datetime FROM tb_user WHERE user_account like '%"+req.query.user_account+"%'")
+      selectFunc("SELECT user_account, user_name, user_position, user_team, user_company, user_email, user_phone, remark, BIN_TO_UUID(uuid_binary) AS uuid_binary, insert_by, insert_datetime, update_by, update_datetime FROM tb_user WHERE user_account like '%"+req.query.searchKeyWord+"%'")
       .then((rowResult)=>{
         console.log(rowResult)
         res.json(rowResult)
@@ -170,10 +170,10 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
 
 
   //================================================================================ [공통 기능] 모든 route를 react SPA로 연결 (이 코드는 맨 아래 있어야함)
-    app.get('/', function (요청, 응답) {
-        응답.sendFile(path.join(__dirname, process.env.react_build_path+'index.html'));
+    app.get('/', function (req, res) {
+      res.sendFile(path.join(__dirname, process.env.react_build_path+'index.html'));
     });
   
-    app.get('*', function (요청, 응답) {
-        응답.sendFile(path.join(__dirname, process.env.react_build_path+'index.html'));
+    app.get('*', function (req, res) {
+      res.sendFile(path.join(__dirname, process.env.react_build_path+'index.html'));
     });
