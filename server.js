@@ -22,11 +22,14 @@ const flash= require('connect-flash')
 const { default: axios } = require('axios');
 
 //================================================================================ [공통] maria DB 라이브러리 import
-const {selectFunc, insertFunc, truncateTable, insertFunc1, batchInsertFunc} = require ('./maria_db/mariadb');
+const {selectFunc, insertFunc,strFunc, truncateTable, insertFunc1, batchInsertFunc} = require ('./maria_db/mariadb');
 const { type } = require('os');
 
 //================================================================================ [공통] bcrypt 라이브러리 import
 const bcrypt = require('bcrypt');
+
+//================================================================================ [공통] jwt 라이브러리 import
+const jwt = require("jsonwebtoken");
 
 //================================================================================ [공통] Express 객체 생성
 const app = express();
@@ -40,11 +43,13 @@ app.use(flash())
 //================================================================================ [공통 미들웨어] json
 app.use(express.json())
 //================================================================================ [공통 미들웨어] passport
-app.use(session({secret : process.env.passport_secret_code, resave : true, saveUninitialized: false}));
+app.use(session({secret : process.env.passport_secret_code, resave : true, saveUninitialized: false})); //cookie: { maxAge : 60000 } 제외함
 app.use(passport.initialize());
 app.use(passport.session());
 //================================================================================ [공통 미들웨어] react router 관련
 app.use(express.static(path.join(__dirname, process.env.react_build_path)));
+
+
 
 //================================================================================ [공통 기능] 서버실행
 app.listen(process.env.PORT, function() {
@@ -135,38 +140,80 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
       rowResult.map((oneRow,i)=>{
         user_auths.push(oneRow.user_auth)
       })
+
+      
   
-      done(null, {user_account:rowResult[0].user_account, user_name:rowResult[0].user_name, user_auth:user_auths})
+      done(null, {
+        user_account:rowResult[0].user_account,
+        user_name:rowResult[0].user_name,
+        user_auth:user_auths,
+        secret_data : jwt.sign({data:"nothing"}, process.env.jwt_secret_key)
+      })
     })
   
   });
-  //================================================================================ [공통 기능] 계정 생성 (개발중)
-  app.post('/createuseraccount', loginCheck, function(req,res){
-    console.log(req.body)
-    res.send("A")
+  //================================================================================ [공통 기능] jwt 복호화 (개발중)
+  app.get('/jwtverify', loginCheck, function(req,res){
+    console.log(req.query)
+    console.log(jwt.verify(req.query.token,  process.env.jwt_secret_key))
+    res.json(jwt.verify(req.query.token,  process.env.jwt_secret_key))
   })
 
-  //================================================================================ [공통 기능] 계정 중복생성 확인
-  app.post('/duplicatedaccountCheck', loginCheck, function(req,res){
-    selectFunc("SELECT * FROM tb_user WHERE user_account='"+req.body.useraccount+"'")
-    .then((rowResult)=>{
-      console.log(rowResult.length)
-      let rowCount = rowResult.length
-      console.log(rowCount)
-      res.send(`${rowCount}`)
+  //================================================================================ [공통 기능] 계정 생성 (개발중)
+    app.post('/postaddaccount', loginCheck, async function(req,res){
+      let insertTable="tb_user";
+      let columNamesArr=[]
+      let questions=[]
+      let valueArrys=[]
+
+      Object.keys(req.body).map((keyName,i)=>{
+        columNamesArr.push(keyName)
+        questions.push('?')
+        valueArrys.push(req.body[keyName])
+      })
+
+      columNamesArr.push("insert_datetime")
+      questions.push('now()')
+
+      columNamesArr.push("uuid_binary")
+      questions.push('UUID_TO_BIN(UUID())')
+
+      let qryResult = await insertFunc(insertTable,columNamesArr,questions,valueArrys)
+      .then((rowResult)=>{return rowResult})
+      .catch((err)=>alert(err))
+      res.json(qryResult)
     })
+  //================================================================================ [공통 기능] 계정 삭제 (개발중)
+    app.delete('/deleteaccount',loginCheck,async function(req,res){
+      let qryResult = await strFunc("DELETE FROM tb_user WHERE uuid_binary = UUID_TO_BIN('" + req.query.uuid_binary +"')")
+      .then((rowResult)=>{return rowResult})
+      .catch((err)=>alert(err))
+      res.json(qryResult)
+    })
+  
+  //================================================================================ [공통 기능] 계정 리스트 조회
+      app.get('/getaccountmng', loginCheck, async function (req, res) {
+        let qryResult = await selectFunc("SELECT user_account, user_name, user_position, user_team, user_company, user_email, user_phone, remark, BIN_TO_UUID(uuid_binary) AS uuid_binary, insert_by, insert_datetime, update_by, update_datetime FROM tb_user WHERE user_account like '%"+req.query.searchKeyWord+"%'")
+        .then((rowResult)=>{return rowResult})
+        .catch((err)=>alert(err))
+        res.json(qryResult)
+    });
+
+  //================================================================================ [공통 기능] 계정 중복생성 확인
+  app.post('/duplicatedaccountCheck', loginCheck, async function(req,res){
+    let qryResult = await selectFunc("SELECT * FROM tb_user WHERE user_account='"+req.body.user_account+"'")
+    .then((rowResult)=>{
+      return rowResult.length
+    })
+    .catch((err)=>alert(err))
+    res.send(`${qryResult}`)
     
   })
 
-  //================================================================================ [공통 기능] 모든 route를 react SPA로 연결 (이 코드는 맨 아래 있어야함)
-    app.get('/getaccountmng', loginCheck, function (req, res) {
-      console.log(req.query)
-      selectFunc("SELECT user_account, user_name, user_position, user_team, user_company, user_email, user_phone, remark, BIN_TO_UUID(uuid_binary) AS uuid_binary, insert_by, insert_datetime, update_by, update_datetime FROM tb_user WHERE user_account like '%"+req.query.searchKeyWord+"%'")
-      .then((rowResult)=>{
-        console.log(rowResult)
-        res.json(rowResult)
-      })
-  });
+  //================================================================================ Table의 UUID 값 때문인지  "TypeError: Do not know how to serialize a BigInt" 방지용
+  BigInt.prototype.toJSON = function() {       
+    return this.toString()
+  }
 
 
   //================================================================================ [공통 기능] 모든 route를 react SPA로 연결 (이 코드는 맨 아래 있어야함)

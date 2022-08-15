@@ -22,14 +22,27 @@ async function selectFunc (reqQuery) {
     }
   }
 
-  async function insertFunc (insertTable, insertColums, insertValues, truncTbl) {
+
+  async function strFunc (reqQuery) {
     let conn;
     try {
       conn = await pool.getConnection();
       conn.query('USE ' + process.env.thisDB_name);
-      //const rows = await conn.query("INSERT INTO " + insertTable + " ("+insertColums+") VALUES("+insertValues+")")
-      console.log("바이너리 전달받은 값  : " + insertValues[2])
-      const rows = await conn.query("INSERT INTO " + insertTable + " ("+insertColums+") VALUES(?,?,UUID_TO_BIN(UUID()))", [insertValues[0],insertValues[1]])
+      const rows = await conn.query(reqQuery)
+      return rows
+    } catch (err) {
+      throw err;
+    } finally {
+      if (conn) conn.end();
+    }
+  }
+
+  async function insertFunc (targetTable, columNamesArr,  questions, valueArrys) {
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      conn.query('USE ' + process.env.thisDB_name);
+      const rows = await conn.query("INSERT INTO " + targetTable + " ("+columNamesArr.join(', ')+") VALUES("+questions.join(', ')+")",valueArrys)
       return rows
     } catch (err) {
       console.log(err)
@@ -38,17 +51,17 @@ async function selectFunc (reqQuery) {
     }
   }
 
-  async function batchInsertFunc (insertTable, columNamesArr, valueCountArr, valueArrys, truncTbl) {
+  async function batchInsertFunc (targetTable, columNamesArr, valueCountArr, valueArrys, truncTbl) {
     let conn;
     try {
       conn = await pool.getConnection();
       conn.query('USE ' + process.env.thisDB_name);
       if (truncTbl){
         conn.query("SET FOREIGN_KEY_CHECKS = 0;")
-        conn.query("TRUNCATE " + insertTable + ";")
+        conn.query("TRUNCATE " + targetTable + ";")
         conn.query("SET FOREIGN_KEY_CHECKS = 1;")
       }
-      const rows = await conn.batch("INSERT INTO " + insertTable + " ("+columNamesArr.join(', ')+") VALUES("+valueCountArr.join(', ')+")", valueArrys)
+      const rows = await conn.batch("INSERT INTO " + targetTable + " ("+columNamesArr.join(', ')+") VALUES("+valueCountArr.join(', ')+")", valueArrys)
       //console.log(rows)
       return rows
     } catch (err) {
@@ -94,4 +107,19 @@ async function selectFunc (reqQuery) {
 
   }
 
-  module.exports={selectFunc, insertFunc, truncateTable, insertFunc1, batchInsertFunc}
+  async function deleteFunc(targetTable, deleteCondition){
+    let conn;
+    try {
+      conn = await pool.getConnection();
+      conn.query('USE ' + process.env.thisDB_name);
+      const rows = await conn.batch("DELETE FROM " + targetTable + " WHERE " + deleteCondition)
+      //console.log(rows)
+      return rows
+    } catch (err) {
+      console.log(err)
+    } finally {
+      if (conn) conn.end();
+    }
+  }
+
+  module.exports={selectFunc, strFunc, insertFunc, truncateTable, insertFunc1, batchInsertFunc}
