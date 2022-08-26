@@ -22,7 +22,6 @@ async function selectFunc (reqQuery) {
     }
   }
 
-
   async function strFunc (reqQuery) {
     let conn;
     try {
@@ -51,7 +50,7 @@ async function selectFunc (reqQuery) {
     }
   }
 
-  async function batchInsertFunc (targetTable, columNamesArr, valueCountArr, valueArrys, truncTbl) {
+  async function batchInsertFunc (targetTable, columNamesArr, questions, valueArrys, truncTbl) {
     let conn;
     try {
       conn = await pool.getConnection();
@@ -61,7 +60,8 @@ async function selectFunc (reqQuery) {
         conn.query("TRUNCATE " + targetTable + ";")
         conn.query("SET FOREIGN_KEY_CHECKS = 1;")
       }
-      const rows = await conn.batch("INSERT INTO " + targetTable + " ("+columNamesArr.join(', ')+") VALUES("+valueCountArr.join(', ')+")", valueArrys)
+      console.log(valueArrys)
+      const rows = await conn.batch("INSERT INTO " + targetTable + " ("+columNamesArr.join(', ')+") VALUES("+questions.join(', ')+")", valueArrys)
       //console.log(rows)
       return rows
     } catch (err) {
@@ -88,38 +88,4 @@ async function selectFunc (reqQuery) {
     }
   }
 
-  async function insertFunc1 (reqQuery,columNames, arr2) {
-    let conn;
-    let columStr = columNames.join(',')
-    console.log(columStr)
-    console.log(arr2)
-
-    try {
-      conn = await pool.getConnection();
-      conn.query('USE ' + process.env.thisDB_name);
-      const rows = await conn.query(reqQuery)
-      return rows
-    } catch (err) {
-      throw err;
-    } finally {
-      if (conn) conn.end();
-    }
-
-  }
-
-  async function deleteFunc(targetTable, deleteCondition){
-    let conn;
-    try {
-      conn = await pool.getConnection();
-      conn.query('USE ' + process.env.thisDB_name);
-      const rows = await conn.batch("DELETE FROM " + targetTable + " WHERE " + deleteCondition)
-      //console.log(rows)
-      return rows
-    } catch (err) {
-      console.log(err)
-    } finally {
-      if (conn) conn.end();
-    }
-  }
-
-  module.exports={selectFunc, strFunc, insertFunc, truncateTable, insertFunc1, batchInsertFunc}
+  module.exports={selectFunc, strFunc, insertFunc, batchInsertFunc, truncateTable}
