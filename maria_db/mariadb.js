@@ -60,9 +60,7 @@ async function selectFunc (reqQuery) {
         conn.query("TRUNCATE " + targetTable + ";")
         conn.query("SET FOREIGN_KEY_CHECKS = 1;")
       }
-      console.log(valueArrys)
       const rows = await conn.batch("INSERT INTO " + targetTable + " ("+columNamesArr.join(', ')+") VALUES("+questions.join(', ')+")", valueArrys)
-      //console.log(rows)
       return rows
     } catch (err) {
       console.log(err)
