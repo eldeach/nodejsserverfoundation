@@ -44,7 +44,8 @@ app.use(flash())
 //================================================================================ [공통 미들웨어] json
 app.use(express.json())
 //================================================================================ [공통 미들웨어] passport
-app.use(session({secret : process.env.passport_secret_code, resave : true, saveUninitialized: false})); //cookie: { maxAge : 60000 } 제외함
+const expireTimeMinutes=1
+app.use(session({secret : process.env.passport_secret_code, resave : false, saveUninitialized: false, cookie: { maxAge : expireTimeMinutes*60000 }, rolling:true})); //cookie: { maxAge : 60000 } 제외함
 app.use(passport.initialize());
 app.use(passport.session());
 //================================================================================ [공통 미들웨어] react router 관련
@@ -82,7 +83,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
   })
   
   app.get('/logincheck', loginCheck, function (req, res) {
-    res.status(200).json({loginStat : true, userInfo : req.user})
+    res.status(200).json({loginStat : true, userInfo : req.user, expireTime:expireTimeMinutes})
   }) 
   
   function loginCheck(req, res, next) { 
@@ -168,8 +169,6 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
         user_auths.push(oneRow.user_auth)
       })
 
-      
-  
       done(null, {
         user_account:rowResult[0].user_account,
         user_name:rowResult[0].user_name,
@@ -198,16 +197,15 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
   });
 
 
-    //================================================================================ [공통 기능] 계정 리스트 조회 [Audit Trail 제외]
-    app.get('/getmypage', loginCheck, async function (req, res) {
-      console.log(req.query.user_account)
-      let qryResult = await selectFunc("SELECT user_account, user_name, user_position, user_team, user_company, user_email, user_phone, remark, BIN_TO_UUID(uuid_binary) AS uuid_binary FROM tb_user WHERE user_account ='"+req.query.user_account+"'")
-      .then((rowResult)=>{
-        return {success:true, result:rowResult}})
-      .catch((err)=>{
-        return {success:false, result:err}})
-      res.json(qryResult)
-    });
+  //================================================================================ [공통 기능] 계정 리스트 조회 [Audit Trail 제외]
+  app.get('/getmypage', loginCheck, async function (req, res) {
+    let qryResult = await selectFunc("SELECT user_account, user_name, user_position, user_team, user_company, user_email, user_phone, remark, BIN_TO_UUID(uuid_binary) AS uuid_binary FROM tb_user WHERE user_account ='"+req.query.user_account+"'")
+    .then((rowResult)=>{
+      return {success:true, result:rowResult}})
+    .catch((err)=>{
+      return {success:false, result:err}})
+    res.json(qryResult)
+  });
 
 
   //================================================================================ [공통 기능] 계정 생성
@@ -294,7 +292,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
     res.json(qryResult)
   })
 
-    //================================================================================ [공통 기능] 비밀번호 수정
+    //================================================================================ [공통 기능] 비밀번호 수정 (uuid_binary, user_account, 변경할 pw, 받아야함)
     app.put('/resetaccountpw',loginCheck,async function(req,res){
       let setArrys=[]
       let hasedPw = await bcryptHashing(req.body.user_pw)
@@ -313,6 +311,44 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
       .catch((err)=>{return {success:false, result:err}})
       res.json(qryResult)
    
+    })
+
+    //================================================================================ [공통 기능] 비밀번호 수정 (before_user_pw, after_user_pw, user_account, update_by 받아야함 (이론적으로 update_by, user_account가 동일할 것 (mypage이기 때문)
+    app.put('/changepwself',loginCheck,async function(req,res){
+      let currentPwRow = await selectFunc("SELECT user_pw FROM tb_user where user_account = '" + req.body.user_account + "'")
+      .then((rowResult)=>{return {success:true, result:rowResult}})
+      .catch((err)=>{return {success:false, result:err}})
+
+      if(currentPwRow.result.length=1){
+        if(bcrypt.compareSync(req.body.before_user_pw, currentPwRow.result[0].user_pw)){
+
+          let hasedPw = await bcryptHashing(req.body.after_user_pw)
+
+          let setArrys=[]
+          setArrys.push("user_pw='"+hasedPw+"'")
+          setArrys.push("update_datetime=now()")
+
+          let qryResult = await strFunc("UPDATE tb_user SET "+ setArrys.join(",") + " where user_account = '" + req.body.user_account + "'")
+          .then(async (rowResult)=>{
+            return {success:true, result:rowResult}
+          })
+          .catch((err)=>{return {success:false, result:err}})
+
+          if(qryResult.success){
+            let auditTrailRows=[]
+            auditTrailRows.push(req.body.update_by,"My Page에서 자신의 계정 '" + req.body.user_account + "'의 비밀번호 수정",req.body.user_account)
+            await batchInsertFunc('tb_audit_trail',['user_account', 'user_action', 'data', 'action_datetime', 'uuid_binary'], ['?','?','?','now()','UUID_TO_BIN(UUID())'],auditTrailRows,false)
+          }
+
+          res.json(qryResult)
+        }
+        else{
+          res.json({success:false, result:"현재 패스워드가 일치하지 않습니다."})
+        }      
+      }
+      else{
+        res.json({success:false, result:"유일한 계정이 확인되지 않습니다."})
+      }
     })
 
   //================================================================================ [공통 기능] 계정 삭제 [on Audit Trail]
