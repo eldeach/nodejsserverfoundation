@@ -22,7 +22,7 @@ const flash= require('connect-flash')
 const { default: axios } = require('axios');
 
 //================================================================================ [공통] maria DB 라이브러리 import
-const {selectFunc, strFunc, insertFunc, batchInsertFunc, truncateTable} = require ('./maria_db/mariadb');
+const {strFunc, insertFunc, batchInsertFunc, whereClause, truncateTable} = require ('./maria_db/mariadb');
 const { type } = require('os');
 
 //================================================================================ [공통] bcrypt 라이브러리 import
@@ -102,7 +102,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
     passReqToCallback: false,
   }, function (reqID, reqPW, done) {
     console.log("verifying user account ...")
-    selectFunc("SELECT * FROM tb_user WHERE user_account='"+reqID+"'")
+    strFunc("SELECT * FROM tb_user WHERE user_account='"+reqID+"'")
       .then(async (rowResult)=>{
         if (rowResult.length<1)
         {
@@ -116,7 +116,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
         }
         if (rowResult.length==1)
         {
-          selectFunc("SELECT * FROM tb_user_auth WHERE user_account='"+reqID+"'")
+          strFunc("SELECT * FROM tb_user_auth WHERE user_account='"+reqID+"'")
           .then(async (authResult)=>{
             if(authResult.length<1){
               console.log("This account is unvalid")
@@ -160,7 +160,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
   });
   
   passport.deserializeUser(function (user_id, done) {
-    selectFunc("SELECT tb_user.user_account as user_account, tb_user.user_name as user_name, tb_user_auth.user_auth as user_auth FROM tb_user LEFT OUTER JOIN tb_user_auth ON tb_user.user_account = tb_user_auth.user_account WHERE tb_user.user_account='"+user_id+"'")
+    strFunc("SELECT tb_user.user_account as user_account, tb_user.user_name as user_name, tb_user_auth.user_auth as user_auth FROM tb_user LEFT OUTER JOIN tb_user_auth ON tb_user.user_account = tb_user_auth.user_account WHERE tb_user.user_account='"+user_id+"'")
     .then((rowResult)=>{
   
       let user_auths = []
@@ -187,8 +187,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
 
   //================================================================================ [공통 기능] 계정 리스트 조회 [Audit Trail 제외]
   app.get('/getaudittrail', loginCheck, async function (req, res) {
-    
-    let qryResult = await selectFunc("SELECT user_account, user_action, data, BIN_TO_UUID(uuid_binary) AS uuid_binary, action_datetime FROM tb_audit_trail WHERE user_account like '%"+req.query.searchKeyWord+"%' ORDER BY action_datetime DESC")
+    let qryResult = await strFunc("SELECT user_account, user_action, data, BIN_TO_UUID(uuid_binary) AS uuid_binary, action_datetime FROM tb_audit_trail " + await whereClause("tb_audit_trail",req.query.searchKeyWord) +" ORDER BY action_datetime DESC")
     .then((rowResult)=>{
       return {success:true, result:rowResult}})
     .catch((err)=>{
@@ -199,7 +198,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
 
   //================================================================================ [공통 기능] 계정 리스트 조회 [Audit Trail 제외]
   app.get('/getmypage', loginCheck, async function (req, res) {
-    let qryResult = await selectFunc("SELECT user_account, user_name, user_position, user_team, user_company, user_email, user_phone, remark, BIN_TO_UUID(uuid_binary) AS uuid_binary FROM tb_user WHERE user_account ='"+req.query.user_account+"'")
+    let qryResult = await strFunc("SELECT user_account, user_name, user_position, user_team, user_company, user_email, user_phone, remark, BIN_TO_UUID(uuid_binary) AS uuid_binary FROM tb_user WHERE user_account ='"+req.query.user_account+"'")
     .then((rowResult)=>{
       return {success:true, result:rowResult}})
     .catch((err)=>{
@@ -315,7 +314,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
 
     //================================================================================ [공통 기능] 비밀번호 수정 (before_user_pw, after_user_pw, user_account, update_by 받아야함 (이론적으로 update_by, user_account가 동일할 것 (mypage이기 때문)
     app.put('/changepwself',loginCheck,async function(req,res){
-      let currentPwRow = await selectFunc("SELECT user_pw FROM tb_user where user_account = '" + req.body.user_account + "'")
+      let currentPwRow = await strFunc("SELECT user_pw FROM tb_user where user_account = '" + req.body.user_account + "'")
       .then((rowResult)=>{return {success:true, result:rowResult}})
       .catch((err)=>{return {success:false, result:err}})
 
@@ -373,7 +372,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
   
   //================================================================================ [공통 기능] 계정 리스트 조회 [Audit Trail 제외]
       app.get('/getmngaccount', loginCheck, async function (req, res) {
-        let qryResult = await selectFunc("SELECT user_account, user_name, user_position, user_team, user_company, user_email, user_phone, remark, BIN_TO_UUID(uuid_binary) AS uuid_binary, insert_by, insert_datetime, update_by, update_datetime FROM tb_user WHERE user_account like '%"+req.query.searchKeyWord+"%'")
+        let qryResult = await strFunc("SELECT user_account, user_name, user_position, user_team, user_company, user_email, user_phone, remark, BIN_TO_UUID(uuid_binary) AS uuid_binary, insert_by, insert_datetime, update_by, update_datetime FROM tb_user " + await whereClause("tb_user",req.query.searchKeyWord))
         .then((rowResult)=>{return {success:true, result:rowResult}})
         .catch((err)=>{return {success:false, result:err}})
         res.json(qryResult)
@@ -381,7 +380,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
 
   //================================================================================ [공통 기능] 계정 부여된 권한 조회 (tb_user_auth에서 사용할 PK값 중 user_account 전달이 필요함) [Audit Trail 제외]
   app.get('/edituserauth_getuser', loginCheck, async function (req, res) {
-    let qryResult = await selectFunc("SELECT user_account, user_name, user_position, user_team, user_company, user_email, user_phone, remark, BIN_TO_UUID(uuid_binary) AS uuid_binary, insert_by, insert_datetime, update_by, update_datetime FROM tb_user WHERE user_account like '%"+req.query.searchKeyWord+"%'")
+    let qryResult = await strFunc("SELECT user_account, user_name, user_position, user_team, user_company, user_email, user_phone, remark, BIN_TO_UUID(uuid_binary) AS uuid_binary, insert_by, insert_datetime, update_by, update_datetime FROM tb_user " + await whereClause("tb_user",req.query.searchKeyWord))
     .then((rowResult)=>{return {success:true, result:rowResult}})
     .catch((err)=>{return {success:false, result:err}})
     res.json(qryResult)
@@ -392,7 +391,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
       let pk_user_account=await JSON.parse(req.query.targetPk).user_account
       let qryResult
       if(typeof(pk_user_account)!='undefined'){
-      qryResult = await selectFunc("SELECT tb_user_auth.user_auth as user_auth, tb_auth.auth_description as auth_description, tb_user_auth.remark, BIN_TO_UUID(tb_user_auth.uuid_binary) AS uuid_binary, tb_user_auth.insert_by as insert_by, tb_user_auth.insert_datetime as insert_datetime FROM tb_user_auth LEFT OUTER JOIN tb_auth ON tb_user_auth.user_auth = tb_auth.user_auth WHERE tb_user_auth.user_account = '"+pk_user_account+"' AND tb_user_auth.user_auth like '%"+req.query.searchKeyWord+"%'")
+      qryResult = await strFunc("SELECT tb_user_auth.user_auth as user_auth, tb_auth.auth_description as auth_description, tb_user_auth.remark, BIN_TO_UUID(tb_user_auth.uuid_binary) AS uuid_binary, tb_user_auth.insert_by as insert_by, tb_user_auth.insert_datetime as insert_datetime FROM tb_user_auth LEFT OUTER JOIN tb_auth ON tb_user_auth.user_auth = tb_auth.user_auth WHERE tb_user_auth.user_account = '"+pk_user_account+"' AND tb_user_auth.user_auth like '%"+req.query.searchKeyWord+"%'")
       .then((rowResult)=>{return {success:true, result:rowResult}})
       .catch((err)=>{return {success:false, result:err}})
       }
@@ -442,7 +441,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
 
     let qryResult
     if(typeof(pk_user_account)!='undefined'){
-      qryResult = await selectFunc("SELECT tb_auth.user_auth, tb_auth.auth_description, tb_auth.remark, BIN_TO_UUID(tb_auth.uuid_binary) as uuid_binary FROM (SELECT * FROM tb_user_auth WHERE user_account = '"+pk_user_account+"'"+ ") tb_user_auth_target RIGHT OUTER JOIN tb_auth ON tb_user_auth_target.user_auth = tb_auth.user_auth WHERE user_account IS null AND tb_auth.user_auth like '%"+req.query.searchKeyWord+"%'")
+      qryResult = await strFunc("SELECT tb_auth.user_auth, tb_auth.auth_description, tb_auth.remark, BIN_TO_UUID(tb_auth.uuid_binary) as uuid_binary FROM (SELECT * FROM tb_user_auth WHERE user_account = '"+pk_user_account+"'"+ ") tb_user_auth_target RIGHT OUTER JOIN tb_auth ON tb_user_auth_target.user_auth = tb_auth.user_auth WHERE user_account IS null AND tb_auth.user_auth like '%"+req.query.searchKeyWord+"%'")
       .then((rowResult)=>{return {success:true, result:rowResult}})
       .catch((err)=>{return {success:false, result:err}})
     }
@@ -453,7 +452,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
   app.get('/signpw', loginCheck, async function (req, res) {
     let user_account=req.query.user_account
     let user_pw =req.query.user_pw
-    let qryResult = await selectFunc("SELECT user_pw FROM tb_user where user_account = '" + req.query.user_account + "'")
+    let qryResult = await strFunc("SELECT user_pw FROM tb_user where user_account = '" + req.query.user_account + "'")
     .then((rowResult)=>{return {success:true, result:rowResult}})
     .catch((err)=>{return {success:false, result:err}})
     if(qryResult.result.length=1){
@@ -471,7 +470,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
 
   //================================================================================ [공통 기능] 계정 중복생성 확인 [Audit Trail 제외]
   app.post('/duplicatedaccountCheck', loginCheck, async function(req,res){
-    let qryResult = await selectFunc("SELECT * FROM tb_user WHERE user_account='"+req.body.user_account+"'")
+    let qryResult = await strFunc("SELECT * FROM tb_user WHERE user_account='"+req.body.user_account+"'")
     .then((rowResult)=>{return {success:true, result:rowResult}})
     .catch((err)=>{return {success:false, result:err}})
     res.json(qryResult)

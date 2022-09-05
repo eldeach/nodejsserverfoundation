@@ -8,20 +8,6 @@ const pool = mariadb.createPool({
      connectionLimit: 5
 });
 
-async function selectFunc (reqQuery) {
-    let conn;
-    try {
-      conn = await pool.getConnection();
-      conn.query('USE ' + process.env.thisDB_name);
-      const rows = await conn.query(reqQuery)
-      return rows
-    } catch (err) {
-      throw err;
-    } finally {
-      if (conn) conn.end();
-    }
-  }
-
   async function strFunc (reqQuery) {
     let conn;
     try {
@@ -86,4 +72,29 @@ async function selectFunc (reqQuery) {
     }
   }
 
-  module.exports={selectFunc, strFunc, insertFunc, batchInsertFunc, truncateTable}
+  async function whereClause(targetTable,searchKeyWord){
+    let columnList=await strFunc("SHOW COLUMNS FROM "+targetTable)
+    let whereList = []
+    let clause=""
+    if(searchKeyWord.length>0){
+      columnList.map((oneColumn)=>{
+        let tempStr
+        if (oneColumn.Field =="uuid_binary"){
+          tempStr= oneColumn.Field + " = UUID_TO_BIN('" + searchKeyWord +"')"
+          whereList.push("("+tempStr+")")
+        }
+        else if(oneColumn.Field =="user_pw"){}
+        else if(oneColumn.Field =="insert_by"){}
+        else if(oneColumn.Field =="update_by"){}
+        else {
+          tempStr = oneColumn.Field + " like '%" + searchKeyWord + "%'"
+          whereList.push("("+tempStr+")")
+        }
+        
+      })
+      clause="WHERE "+whereList.join(" OR ")
+    }
+    return clause
+}
+
+  module.exports={strFunc, insertFunc, batchInsertFunc, whereClause, truncateTable}
