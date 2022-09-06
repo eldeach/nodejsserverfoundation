@@ -43,15 +43,14 @@ app.use(flash())
 
 //================================================================================ [공통 미들웨어] json
 app.use(express.json())
+
 //================================================================================ [공통 미들웨어] passport
-const expireTimeMinutes=1
+const expireTimeMinutes=10
 app.use(session({secret : process.env.passport_secret_code, resave : false, saveUninitialized: false, cookie: { maxAge : expireTimeMinutes*60000 }, rolling:true})); //cookie: { maxAge : 60000 } 제외함
 app.use(passport.initialize());
 app.use(passport.session());
 //================================================================================ [공통 미들웨어] react router 관련
 app.use(express.static(path.join(__dirname, process.env.react_build_path)));
-
-
 
 //================================================================================ [공통 기능] 서버실행
 app.listen(process.env.PORT, function() {
@@ -78,12 +77,12 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
   })
 
   app.get('/fail', function(req,res){ //수정중
-    res.json({loginStat : false, flashMsg : req.session.flash.error.slice(-1)[0]})
+    res.json({success : false, flashMsg : req.session.flash.error.slice(-1)[0]})
     console.log(req.session.flash.error)
   })
   
   app.get('/logincheck', loginCheck, function (req, res) {
-    res.status(200).json({loginStat : true, userInfo : req.user, expireTime:expireTimeMinutes})
+    res.status(200).json({success : true, userInfo : req.user, expireTime:expireTimeMinutes})
   }) 
   
   function loginCheck(req, res, next) { 
@@ -91,7 +90,7 @@ app.post('/login', passport.authenticate('local', {successRedirect :"/logincheck
       next()
     } 
     else {
-      res.json({loginStat : false})
+      res.json({success : false})
     } 
   } 
   
